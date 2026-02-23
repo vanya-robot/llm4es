@@ -56,7 +56,6 @@ class FinetuneConfig:
     max_users_for_finetune: int = 50
     save_checkpoint: bool = False
     checkpoint_dir: str = "artifacts/checkpoints"
-    use_fp16: bool = False          # включается автоматически на cuda
 
 
 @dataclass

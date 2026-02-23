@@ -4,7 +4,7 @@ Fine-tuning: next-token prediction (L_NTP).
 Режимы:
   none     — пропустить
   dry_run  — 1-2 шага (проверка что код работает)
-  tiny_run — 50-200 шагов на подмножестве; на GPU с fp16 + grad accumulation
+  tiny_run — 50-200 шагов на подмножестве
 """
 import os
 import time
@@ -54,7 +54,6 @@ def finetune(
     """
     Дообучить causal LM на next-token prediction.
     labels = input_ids, сдвиг делает сама модель HF.
-    На GPU — fp16 autocast + GradScaler.
     """
     logger = get_logger()
 
@@ -72,23 +71,22 @@ def finetune(
     else:
         raise ValueError(f"Unknown finetune mode: {config.mode}")
 
-    use_fp16 = (device == "cuda") and config.use_fp16
     grad_accum = config.gradient_accumulation_steps if device == "cuda" else 1
 
     logger.info(
-        f"Fine-tune config: device={device}, fp16={use_fp16}, "
+        f"Fine-tune config: device={device}, "
         f"grad_accum={grad_accum}, batch_size={config.batch_size}, "
         f"effective_batch={config.batch_size * grad_accum}"
     )
+
+    # Модель в float32 для стабильного обучения на любом устройстве
+    model = model.float()
+    model.to(device)
 
     dataset = TextDataset(texts, tokenizer, max_length=max_length)
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-
-    scaler = None
-    if use_fp16:
-        scaler = torch.amp.GradScaler("cuda")
 
     model.train()
     step = 0
@@ -112,33 +110,19 @@ def finetune(
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
 
-            if use_fp16:
-                with torch.amp.autocast("cuda"):
-                    outputs = model(
-                        input_ids=input_ids,
-                        attention_mask=attention_mask,
-                        labels=input_ids,
-                    )
-                    loss = outputs.loss / grad_accum
-                scaler.scale(loss).backward()
-            else:
-                outputs = model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=input_ids,
-                )
-                loss = outputs.loss / grad_accum
-                loss.backward()
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=input_ids,
+            )
+            loss = outputs.loss / grad_accum
+            loss.backward()
 
             accum_loss += loss.item() * grad_accum
             micro_step += 1
 
             if micro_step % grad_accum == 0 or step == num_steps - 1:
-                if use_fp16:
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    optimizer.step()
+                optimizer.step()
                 optimizer.zero_grad()
 
                 step_time = time.time() - t0

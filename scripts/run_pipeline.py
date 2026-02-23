@@ -98,7 +98,6 @@ def main():
     cfg.model.batch_size = args.batch_size
     cfg.finetune.mode = args.finetune
     cfg.finetune.save_checkpoint = args.save_ckpt
-    cfg.finetune.use_fp16 = (device == "cuda")
     cfg.downstream.task = args.task
     cfg.enrichment.num_variants = args.enrich_variants
     cfg.enrichment.use_llm = args.use_llm
