@@ -195,11 +195,10 @@ def main():
                     model_id=args.llm_model,
                 )
 
-                if args.llm_model != model_name:
-                    del enrich_model, enrich_tokenizer
-                    if device == "cuda":
-                        torch.cuda.empty_cache()
-                    logger.info("Freed enrichment model memory")
+                del enrich_model, enrich_tokenizer
+                if device == "cuda":
+                    torch.cuda.empty_cache()
+                logger.info("Freed enrichment model memory")
 
                 for uid in user_ids:
                     all_enriched = [serialized_texts[uid]] + enriched_map[uid]

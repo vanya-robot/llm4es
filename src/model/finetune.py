@@ -83,6 +83,12 @@ def finetune(
     model = model.float()
     model.to(device)
 
+    # Gradient checkpointing: пересчитываем активации при backward вместо хранения,
+    # экономит несколько ГБ VRAM ценой ~20% замедления
+    if device == "cuda" and hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+        logger.info("Gradient checkpointing enabled (saves VRAM)")
+
     dataset = TextDataset(texts, tokenizer, max_length=max_length)
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
 
@@ -149,6 +155,9 @@ def finetune(
     log_memory(logger)
 
     model.eval()
+
+    if hasattr(model, "gradient_checkpointing_disable"):
+        model.gradient_checkpointing_disable()
 
     if config.save_checkpoint:
         from datetime import datetime
