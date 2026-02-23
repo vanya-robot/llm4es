@@ -107,8 +107,11 @@ def train_and_evaluate(
             roc_auc = roc_auc_score(y_test, y_prob, multi_class="ovr", average="macro")
         logger.info(f"ROC-AUC: {roc_auc:.4f}")
 
-    cm = confusion_matrix(y_test, y_pred)
-    report = classification_report(y_test, y_pred, target_names=class_names, zero_division=0)
+    all_labels = list(range(n_classes))
+    cm = confusion_matrix(y_test, y_pred, labels=all_labels)
+    report = classification_report(
+        y_test, y_pred, labels=all_labels, target_names=class_names, zero_division=0
+    )
 
     logger.info(f"Confusion Matrix:\n{cm}")
     logger.info(f"Classification Report:\n{report}")
